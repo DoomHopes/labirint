@@ -15,6 +15,7 @@ import 'package:labirint/domain/entities/maze_config.dart';
 import 'package:labirint/domain/entities/maze_enums.dart';
 import 'package:labirint/domain/entities/maze_grid.dart';
 import 'package:labirint/domain/entities/poi_marker.dart';
+import 'package:labirint/domain/entities/voxel_block_visual.dart';
 import 'package:labirint/domain/entities/voxel_volume.dart';
 import 'package:labirint/main.dart';
 import 'package:labirint/presentation/controllers/maze_architect_controller.dart';
@@ -155,5 +156,17 @@ void main() {
     );
     expect(find.text('Экспорт .schem'), findsOneWidget);
     expect(find.text('Экспорт .mcfunction'), findsOneWidget);
+
+    // Проверяем по-блочный классификатор и переключение слоев Y.
+    final dispSpec = VoxelBlockClassifier.classify(
+      'minecraft:dispenser[facing=east,triggered=false]',
+    );
+    expect(dispSpec.badgeLabel, equals('РЗ►'));
+    expect(dispSpec.isAir, isFalse);
+
+    controller.selectYLayer(0);
+    await tester.pump();
+    expect(controller.activeYLayer, equals(0));
+    expect(controller.activeLayerBlockCounts, isNotEmpty);
   });
 }

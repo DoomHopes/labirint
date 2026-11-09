@@ -28,8 +28,12 @@ final class MazeArchitectController extends ChangeNotifier {
   MazeGrid? _grid;
   VoxelVolume? _volume;
   EditorTool _activeTool = EditorTool.inspect;
-  ViewLayerMode _viewLayerMode = ViewLayerMode.compositeTopDown;
+  ViewLayerMode _viewLayerMode = ViewLayerMode.voxelSliceByY;
+  int _activeYLayer = 2;
+  bool _showBlockCodes = true;
+  bool _showAirUnderlay = true;
   GridPosition? _selectedPosition;
+  GridPosition? _hoveredPosition;
   SchematicBinaryArtifact? _lastSchematicArtifact;
   CommandScriptArtifact? _lastCommandArtifact;
   String? _statusMessage;
@@ -51,11 +55,27 @@ final class MazeArchitectController extends ChangeNotifier {
   VoxelVolume? get volume => _volume;
   EditorTool get activeTool => _activeTool;
   ViewLayerMode get viewLayerMode => _viewLayerMode;
+
+  /// Текущий выбранный высотный срез `Y` (от `0` до `volume.height - 1`).
+  int get activeYLayer => _activeYLayer;
+
+  /// Отображать ли текстовые коды блоков (`СТН`, `ОБС`, `СН▼`, `РЗ►`) внутри клеток.
+  bool get showBlockCodes => _showBlockCodes;
+
+  /// Показывать ли контур пола под клетками воздуха (`minecraft:air`) на срезах `Y >= 2`.
+  bool get showAirUnderlay => _showAirUnderlay;
+
   GridPosition? get selectedPosition => _selectedPosition;
+  GridPosition? get hoveredPosition => _hoveredPosition;
   SchematicBinaryArtifact? get lastSchematicArtifact => _lastSchematicArtifact;
   CommandScriptArtifact? get lastCommandArtifact => _lastCommandArtifact;
   String? get statusMessage => _statusMessage;
   bool get isStatusError => _isStatusError;
+
+  /// Координата для оперативного отображения в строке состояния над картой
+  /// (приоритет у клетки под курсором мыши, иначе — выбранная кликом клетка).
+  GridPosition? get focusedPosition =>
+      _hoveredPosition ?? _selectedPosition ?? _grid?.center;
 
   /// Возвращает выбранную пользователем клетку лабиринта (или центральную клетку по умолчанию).
   MazeCell? get selectedCell {
@@ -68,6 +88,31 @@ final class MazeArchitectController extends ChangeNotifier {
       return currentGrid.cellAtPosition(currentGrid.center);
     }
     return currentGrid.cellAtPosition(pos);
+  }
+
+  /// Подсчитывает количество каждого типа блока на текущем выбранном слое `activeYLayer`.
+  Map<String, int> get activeLayerBlockCounts {
+    final vol = _volume;
+    if (vol == null) {
+      return const <String, int>{};
+    }
+    final y = _activeYLayer.clamp(0, vol.height - 1);
+    final counts = <String, int>{};
+    for (var z = 0; z < vol.length; z++) {
+      for (var x = 0; x < vol.width; x++) {
+        final state = vol.blockStateAt(x, y, z);
+        counts[state] = (counts[state] ?? 0) + 1;
+      }
+    }
+    final sortedEntries = counts.entries.toList()
+      ..sort((a, b) {
+        if (a.key == 'minecraft:air') return 1;
+        if (b.key == 'minecraft:air') return -1;
+        return b.value.compareTo(a.value);
+      });
+    return Map<String, int>.unmodifiable(
+      Map<String, int>.fromEntries(sortedEntries),
+    );
   }
 
   /// Выполняет полную процедурную генерацию лабиринта и компиляцию 3D-объема.
@@ -151,10 +196,48 @@ final class MazeArchitectController extends ChangeNotifier {
   }
 
   void selectViewLayerMode(ViewLayerMode mode) {
-    if (_viewLayerMode == mode) {
+    _viewLayerMode = mode;
+    if (mode == ViewLayerMode.redstoneSubfloor) {
+      _activeYLayer = 0;
+    }
+    notifyListeners();
+  }
+
+  /// Переключает текущий высотный слой `Y` и активирует по-блочный режим отображения.
+  void selectYLayer(int y) {
+    final maxH = _volume?.height ?? 9;
+    final clamped = y.clamp(0, maxH - 1);
+    _activeYLayer = clamped;
+    if (_viewLayerMode != ViewLayerMode.voxelSliceByY) {
+      _viewLayerMode = ViewLayerMode.voxelSliceByY;
+    }
+    notifyListeners();
+  }
+
+  /// Включает или отключает подписи кодов блоков внутри ячеек.
+  void toggleShowBlockCodes(bool value) {
+    if (_showBlockCodes == value) {
       return;
     }
-    _viewLayerMode = mode;
+    _showBlockCodes = value;
+    notifyListeners();
+  }
+
+  /// Включает или отключает показ контура пола под воздухом на верхних слоях.
+  void toggleShowAirUnderlay(bool value) {
+    if (_showAirUnderlay == value) {
+      return;
+    }
+    _showAirUnderlay = value;
+    notifyListeners();
+  }
+
+  /// Обновляет координату клетки под курсором мыши для мгновенной подсказки блока.
+  void updateHoveredCell(GridPosition? pos) {
+    if (_hoveredPosition == pos) {
+      return;
+    }
+    _hoveredPosition = pos;
     notifyListeners();
   }
 
@@ -166,6 +249,7 @@ final class MazeArchitectController extends ChangeNotifier {
     }
 
     _selectedPosition = pos;
+    _hoveredPosition = pos;
     if (_activeTool == EditorTool.inspect) {
       notifyListeners();
       return;
@@ -176,7 +260,7 @@ final class MazeArchitectController extends ChangeNotifier {
     _grid = currentGrid.withUpdatedCell(updatedCell);
     _recompileVoxelsAndRefreshArtifacts(
       statusNote:
-          'Клетка ${pos.x}, ${pos.z} обновлена инструментом «${_activeTool.title}».',
+          'Клетка (${pos.x}, ${pos.z}) обновлена инструментом «${_activeTool.title}».',
     );
   }
 
@@ -273,6 +357,9 @@ final class MazeArchitectController extends ChangeNotifier {
         _isStatusError = true;
       case Success(:final value):
         _volume = value;
+        if (_activeYLayer >= value.height) {
+          _activeYLayer = value.height - 1;
+        }
         final schemRes = _schematicExporter.exportSchematic(
           grid: currentGrid,
           volume: value,

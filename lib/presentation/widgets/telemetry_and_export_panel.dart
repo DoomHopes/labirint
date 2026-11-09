@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../domain/entities/maze_enums.dart';
 import '../../domain/entities/maze_grid.dart';
+import '../../domain/entities/voxel_block_visual.dart';
 import '../../domain/entities/voxel_volume.dart';
 import '../controllers/maze_architect_controller.dart';
 
@@ -256,7 +257,7 @@ class AngularOffsetTelemetryCard extends StatelessWidget {
   }
 }
 
-/// Инспектор выбранной клетки и её вертикального среза в 3D-воксельном объеме.
+/// Инспектор выбранной клетки и полной вертикальной колонки блоков (Y=0..H-1).
 class SelectedCellVoxelInspectorCard extends StatelessWidget {
   final MazeArchitectController controller;
 
@@ -267,15 +268,16 @@ class SelectedCellVoxelInspectorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cell = controller.selectedCell;
     final grid = controller.grid;
     final volume = controller.volume;
-    if (cell == null || grid == null || volume == null) {
+    final pos = controller.focusedPosition;
+    if (grid == null || volume == null || pos == null) {
       return const SizedBox.shrink();
     }
 
-    final pos = cell.position;
+    final cell = grid.cellAtPosition(pos);
     final chebyshevR = pos.chebyshevDistanceTo(grid.center);
+    final activeY = controller.activeYLayer;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -288,40 +290,141 @@ class SelectedCellVoxelInspectorCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            'Инспектор клетки X=${pos.x}, Z=${pos.z} (L∞ r=$chebyshevR)',
+            'Колонка блоков X=${pos.x}, Z=${pos.z} (L∞ r=$chebyshevR)',
             style: const TextStyle(
               fontSize: 12.5,
               fontWeight: FontWeight.w700,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Text(
             'Зона: ${cell.ringTier.title}\n'
-            'Поверхность: ${cell.surfaceType.name} | Тупик: ${cell.isDeadEnd ? "Да" : "Нет"}\n'
             'POI: ${cell.poi.summaryRu}',
-            style: const TextStyle(fontSize: 11.5, color: Color(0xFFB8C4DC)),
+            style: const TextStyle(fontSize: 11, color: Color(0xFFB8C4DC)),
           ),
           const SizedBox(height: 8),
           const Text(
-            'Послойный воксельный срез (Y=0..4):',
+            'Все блоки по высоте (кликните на Y для перехода к слою):',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF8B99B5),
+              color: Color(0xFF00E5FF),
             ),
           ),
-          const SizedBox(height: 4),
-          for (var y = 0; y <= 4 && y < volume.height; y++)
-            Text(
-              'Y=$y: ${volume.blockStateAt(pos.x, y, pos.z)}',
-              style: const TextStyle(
-                fontSize: 10.5,
-                fontFamily: 'monospace',
-                color: Color(0xFF00E676),
-              ),
+          const SizedBox(height: 6),
+          for (var y = volume.height - 1; y >= 0; y--)
+            VerticalColumnBlockRow(
+              y: y,
+              isSelectedLayer: y == activeY,
+              blockState: volume.blockStateAt(pos.x, y, pos.z),
+              onTap: () => controller.selectYLayer(y),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Строка одного уровня высоты `Y` в вертикальной колонке инспектора клетки.
+class VerticalColumnBlockRow extends StatelessWidget {
+  final int y;
+  final bool isSelectedLayer;
+  final String blockState;
+  final VoidCallback onTap;
+
+  const VerticalColumnBlockRow({
+    super.key,
+    required this.y,
+    required this.isSelectedLayer,
+    required this.blockState,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final spec = VoxelBlockClassifier.classify(blockState);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: isSelectedLayer
+                ? const Color(0xFF1F324D)
+                : const Color(0xFF101520),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: isSelectedLayer
+                  ? const Color(0xFF00E5FF)
+                  : const Color(0xFF232D40),
+            ),
+          ),
+          child: Row(
+            children: <Widget>[
+              SizedBox(
+                width: 34,
+                child: Text(
+                  'Y=$y',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.bold,
+                    color: isSelectedLayer
+                        ? const Color(0xFF00E5FF)
+                        : const Color(0xFF9AA8C4),
+                  ),
+                ),
+              ),
+              Container(
+                width: 38,
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Color(spec.fillArgb),
+                  border: Border.all(color: Color(spec.borderArgb)),
+                ),
+                child: Text(
+                  spec.badgeLabel,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w800,
+                    color: Color(spec.textArgb),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      spec.titleRu,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      blockState,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontFamily: 'monospace',
+                        color: Color(0xFF80CBC4),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

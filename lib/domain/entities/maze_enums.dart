@@ -246,14 +246,17 @@ enum EditorTool {
 
 /// Режим отображения слоев на 2D-холсте.
 enum ViewLayerMode {
+  /// Послойный по-блочный срез 3D-схемы на выбранной высоте Y (каждый блок подписан).
+  voxelSliceByY(title: 'По-блочный срез Y'),
+
   /// Комбинированный вид сверху со всеми маркерами POI, ареной и стенами.
-  compositeTopDown(title: 'Все слои (2D Карта)'),
+  compositeTopDown(title: 'Сводная карта POI'),
 
   /// Цветовая подсветка концентрических зон (Тир 1–3 + Арена) и угловых ворот.
-  tierZonesOverlay(title: 'Концентрические зоны и углы'),
+  tierZonesOverlay(title: 'Зоны и углы'),
 
   /// Схема подпольной редстоун-разводки (Y=0: линии сброса шахт, ловушки, финал).
-  redstoneSubfloor(title: 'Слой Redstone-механики (Y=0)');
+  redstoneSubfloor(title: 'Redstone (Y=0)');
 
   final String title;
 
