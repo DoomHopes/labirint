@@ -2,13 +2,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/maze_cell.dart';
-import '../../domain/entities/voxel_block_visual.dart';
+import '../../domain/entities/maze_enums.dart';
 import '../controllers/maze_architect_controller.dart';
+import '../services/texture_service.dart';
 import 'maze_grid_painter.dart';
 import 'y_layer_selector_bar.dart';
 
-/// Интерактивная панель предпросмотра 2D-схемы по слоям Y с линейками координат,
-/// зумом (`InteractiveViewer`) и ведомостью блоков активного слоя.
+/// Интерактивная панель предпросмотра схемы лабиринта (2 слоя: Пол и Стены/Сундуки/Загадки).
 class MazeCanvasPanel extends StatelessWidget {
   final MazeArchitectController controller;
 
@@ -75,11 +75,10 @@ class MazeCanvasPanel extends StatelessWidget {
                               grid: grid,
                               volume: volume,
                               layerMode: controller.viewLayerMode,
-                              activeYLayer: controller.activeYLayer,
                               showBlockCodes: controller.showBlockCodes,
-                              showAirUnderlay: controller.showAirUnderlay,
                               selectedPosition: controller.selectedPosition,
                               hoveredPosition: controller.hoveredPosition,
+                              textureService: TextureService.instance,
                             ),
                           ),
                         ),
@@ -91,7 +90,7 @@ class MazeCanvasPanel extends StatelessWidget {
             ),
           ),
         ),
-        ActiveLayerBlockLegendBar(controller: controller),
+        TwoLayerLegendBar(controller: controller),
       ],
     );
   }
@@ -127,121 +126,155 @@ class MazeCanvasPanel extends StatelessWidget {
   }
 }
 
-/// Нижняя ведомость-легенда всех реальных блоков Minecraft, присутствующих на текущем слое `Y`.
-class ActiveLayerBlockLegendBar extends StatelessWidget {
+/// Наглядная легенда объектов схемы для 2 слоев.
+class TwoLayerLegendBar extends StatelessWidget {
   final MazeArchitectController controller;
 
-  const ActiveLayerBlockLegendBar({
+  const TwoLayerLegendBar({
     super.key,
     required this.controller,
   });
 
   @override
   Widget build(BuildContext context) {
-    final blockCounts = controller.activeLayerBlockCounts;
-    final activeY = controller.activeYLayer;
+    final isWallsLayer = controller.viewLayerMode == ViewLayerMode.wallsAndObjects;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: const BoxDecoration(
         color: Color(0xFF121722),
         border: Border(
           top: BorderSide(color: Color(0xFF252D3D)),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            'Блоки на активном срезе Y=$activeY (Код на схеме — Назначение — ID блока — Кол-во):',
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF9AA8C4),
-            ),
-          ),
-          const SizedBox(height: 6),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: <Widget>[
-                for (final entry in blockCounts.entries)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: BlockSpecLegendBadge(
-                      blockState: entry.key,
-                      count: entry.value,
-                    ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: isWallsLayer
+              ? const <Widget>[
+                  LegendItemBadge(
+                    iconColor: Color(0xFF757575),
+                    title: 'Камень',
+                    subtitle: 'Стены лабиринта',
                   ),
-              ],
-            ),
-          ),
-        ],
+                  SizedBox(width: 14),
+                  LegendItemBadge(
+                    iconColor: Color(0xFF8B5322),
+                    title: 'Сундуки с лутом',
+                    subtitle: 'Т1, Т2, Т3 в тупиках',
+                  ),
+                  SizedBox(width: 14),
+                  LegendItemBadge(
+                    iconColor: Color(0xFF00E5FF),
+                    title: 'Запертая дверь [A/B]',
+                    subtitle: 'Головоломка перешейка',
+                  ),
+                  SizedBox(width: 14),
+                  LegendItemBadge(
+                    iconColor: Color(0xFFFFD600),
+                    title: 'Секретный рычаг [A/B]',
+                    subtitle: 'Открывает дверь',
+                  ),
+                  SizedBox(width: 14),
+                  LegendItemBadge(
+                    iconColor: Color(0xFF00E676),
+                    title: 'Спавны (S1..S4)',
+                    subtitle: 'Угловые шахты сброса',
+                  ),
+                  SizedBox(width: 14),
+                  LegendItemBadge(
+                    iconColor: Color(0xFFD500F9),
+                    title: 'Ловушки / Спавнеры',
+                    subtitle: 'Плиты, стрелы, мобы',
+                  ),
+                ]
+              : const <Widget>[
+                  LegendItemBadge(
+                    iconColor: Color(0xFF2E3D30),
+                    title: 'Внешнее кольцо',
+                    subtitle: 'Зона Тир 1',
+                  ),
+                  SizedBox(width: 14),
+                  LegendItemBadge(
+                    iconColor: Color(0xFF3F3528),
+                    title: 'Среднее кольцо',
+                    subtitle: 'Зона Тир 2 (ловушки)',
+                  ),
+                  SizedBox(width: 14),
+                  LegendItemBadge(
+                    iconColor: Color(0xFF452232),
+                    title: 'Внутреннее кольцо',
+                    subtitle: 'Зона Тир 3 (мобы)',
+                  ),
+                  SizedBox(width: 14),
+                  LegendItemBadge(
+                    iconColor: Color(0xFF102A56),
+                    title: 'Центральная арена',
+                    subtitle: 'Финальная PvP-зона',
+                  ),
+                  SizedBox(width: 14),
+                  LegendItemBadge(
+                    iconColor: Color(0xFFFF3D00),
+                    title: 'Redstone линия',
+                    subtitle: 'Подпольная проводка',
+                  ),
+                ],
+        ),
       ),
     );
   }
 }
 
-/// Отдельная карточка блока в нижней ведомости активного слоя.
-class BlockSpecLegendBadge extends StatelessWidget {
-  final String blockState;
-  final int count;
+class LegendItemBadge extends StatelessWidget {
+  final Color iconColor;
+  final String title;
+  final String subtitle;
 
-  const BlockSpecLegendBadge({
+  const LegendItemBadge({
     super.key,
-    required this.blockState,
-    required this.count,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
   });
 
   @override
   Widget build(BuildContext context) {
-    final spec = VoxelBlockClassifier.classify(blockState);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF171E2C),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: const Color(0xFF2B3548)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-            decoration: BoxDecoration(
-              color: Color(spec.fillArgb),
-              border: Border.all(color: Color(spec.borderArgb)),
-            ),
-            child: Text(
-              spec.badgeLabel,
-              style: TextStyle(
-                fontSize: 10,
-                fontFamily: 'monospace',
-                fontWeight: FontWeight.w800,
-                color: Color(spec.textArgb),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: iconColor,
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: Colors.white54, width: 0.8),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
             ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '${spec.titleRu} ',
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.white,
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 9.5,
+                color: Color(0xFF8B99B5),
+              ),
             ),
-          ),
-          Text(
-            '[${spec.baseBlockId}] ×$count',
-            style: const TextStyle(
-              fontSize: 10.5,
-              fontFamily: 'monospace',
-              color: Color(0xFF00E5FF),
-            ),
-          ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }

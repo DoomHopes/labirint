@@ -2,8 +2,11 @@ import 'result.dart';
 
 /// Миксин горизонтального переиспользования логики валидации геометрии лабиринта.
 mixin MazeValidationMixin {
-  /// Нормализует размер сетки к ближайшему валидному нечетному числу в диапазоне [33, 99].
+  /// Нормализует размер сетки к валидному числу в диапазоне [33, 99] или 60.
   int normalizeOddDimension(int rawSize) {
+    if (rawSize == 60) {
+      return 60;
+    }
     final clamped = rawSize.clamp(33, 99);
     return clamped.isEven ? clamped + 1 : clamped;
   }
@@ -26,10 +29,12 @@ mixin MazeValidationMixin {
     required double deadEndDensity,
     required double trapPercentage,
   }) {
-    if (gridSize < 33 || gridSize > 101 || gridSize.isEven) {
+    final isValidGrid = (gridSize >= 33 && gridSize <= 101) &&
+        (gridSize.isOdd || gridSize == 60);
+    if (!isValidGrid) {
       return const DomainError(
         code: 'INVALID_GRID_SIZE',
-        message: 'Размер лабиринта должен быть нечетным числом от 33 до 101.',
+        message: 'Размер лабиринта должен быть нечетным числом от 33 до 101 или 60×60.',
       );
     }
     if (arenaSize != 15 && arenaSize != 21) {

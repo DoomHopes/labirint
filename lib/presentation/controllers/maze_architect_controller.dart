@@ -28,7 +28,7 @@ final class MazeArchitectController extends ChangeNotifier {
   MazeGrid? _grid;
   VoxelVolume? _volume;
   EditorTool _activeTool = EditorTool.inspect;
-  ViewLayerMode _viewLayerMode = ViewLayerMode.voxelSliceByY;
+  ViewLayerMode _viewLayerMode = ViewLayerMode.wallsAndObjects;
   int _activeYLayer = 2;
   bool _showBlockCodes = true;
   bool _showAirUnderlay = true;
@@ -197,20 +197,17 @@ final class MazeArchitectController extends ChangeNotifier {
 
   void selectViewLayerMode(ViewLayerMode mode) {
     _viewLayerMode = mode;
-    if (mode == ViewLayerMode.redstoneSubfloor) {
-      _activeYLayer = 0;
-    }
+    _activeYLayer = mode == ViewLayerMode.floor ? 1 : 2;
     notifyListeners();
   }
 
-  /// Переключает текущий высотный слой `Y` и активирует по-блочный режим отображения.
+  /// Переключает активный слой (Слой 1: Пол, Слой 2: Стены и Объекты).
   void selectYLayer(int y) {
     final maxH = _volume?.height ?? 9;
     final clamped = y.clamp(0, maxH - 1);
     _activeYLayer = clamped;
-    if (_viewLayerMode != ViewLayerMode.voxelSliceByY) {
-      _viewLayerMode = ViewLayerMode.voxelSliceByY;
-    }
+    _viewLayerMode =
+        clamped == 1 ? ViewLayerMode.floor : ViewLayerMode.wallsAndObjects;
     notifyListeners();
   }
 
@@ -336,6 +333,23 @@ final class MazeArchitectController extends ChangeNotifier {
             entityId: 'minecraft:wither_skeleton',
             entityNameRu: 'Визер-скелет',
           ),
+        ),
+      EditorTool.placePuzzleDoor => cell.copyWith(
+          surfaceType: CellSurfaceType.passage,
+          poi: const PuzzleDoorPoi(
+            puzzleId: 'A',
+            facing: CardinalDirection.north,
+          ),
+          hasSubfloorRedstone: true,
+        ),
+      EditorTool.placePuzzleLever => cell.copyWith(
+          surfaceType: CellSurfaceType.passage,
+          poi: const PuzzleLeverPoi(
+            puzzleId: 'A',
+            wallFacing: CardinalDirection.south,
+          ),
+          hasSubfloorRedstone: true,
+          isDeadEnd: true,
         ),
       EditorTool.eraser => cell.copyWith(
           poi: const NoPoi(),

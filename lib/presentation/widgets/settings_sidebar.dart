@@ -127,7 +127,7 @@ class SidebarSectionHeader extends StatelessWidget {
   }
 }
 
-/// Селектор нечетного размера лабиринта (33×33, 49×49, 65×65).
+/// Селектор размера лабиринта (33×33, 49×49, 60×60, 65×65).
 class GridSizePresetSelector extends StatelessWidget {
   final int currentSize;
   final ValueChanged<int> onSelectSize;
@@ -140,12 +140,12 @@ class GridSizePresetSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const presets = <int>[33, 49, 65];
+    const presets = <int>[33, 49, 60, 65];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Text(
-          'Габариты лабиринта: $currentSize×$currentSize блоков (нечетный)',
+          'Габариты лабиринта: $currentSize×$currentSize блоков',
           style: const TextStyle(fontSize: 12, color: Color(0xFFB8C4DC)),
         ),
         const SizedBox(height: 6),
@@ -154,9 +154,12 @@ class GridSizePresetSelector extends StatelessWidget {
             for (final preset in presets)
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: ChoiceChip(
-                    label: Text('$preset×$preset'),
+                    label: Text(
+                      '$preset×$preset',
+                      style: const TextStyle(fontSize: 11),
+                    ),
                     selected: currentSize == preset,
                     onSelected: (_) => onSelectSize(preset),
                   ),

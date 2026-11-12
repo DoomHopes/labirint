@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'grid_position.dart';
 import 'maze_enums.dart';
 
 /// Иерархия точек интереса (POI) на клетке лабиринта.
@@ -165,4 +166,51 @@ final class ArenaPedestalPoi extends PoiMarker {
   String get summaryRu =>
       'Пьедестал главного приза (финальный сундук-ловушка + салют победы)';
 }
+
+/// Запертая железная дверь-головоломка, для открытия которой необходимо найти рычаг.
+@immutable
+final class PuzzleDoorPoi extends PoiMarker {
+  /// Идентификатор головоломки ('A', 'B' и т.д.).
+  final String puzzleId;
+
+  /// Ориентация двери.
+  final CardinalDirection facing;
+
+  /// Координаты парного рычага, открывающего данную дверь.
+  final GridPosition? leverPosition;
+
+  const PuzzleDoorPoi({
+    required this.puzzleId,
+    required this.facing,
+    this.leverPosition,
+  });
+
+  @override
+  String get summaryRu =>
+      'Запертая железная дверь [$puzzleId] (рычаг: ${leverPosition != null ? "${leverPosition!.x}, ${leverPosition!.z}" : "в тупике"})';
+}
+
+/// Настенный рычаг-головоломка, открывающий запертую железную дверь.
+@immutable
+final class PuzzleLeverPoi extends PoiMarker {
+  /// Идентификатор головоломки ('A', 'B' и т.д.).
+  final String puzzleId;
+
+  /// Направление стены, на которой закреплен рычаг.
+  final CardinalDirection wallFacing;
+
+  /// Координаты двери, которую открывает данный рычаг.
+  final GridPosition? doorPosition;
+
+  const PuzzleLeverPoi({
+    required this.puzzleId,
+    required this.wallFacing,
+    this.doorPosition,
+  });
+
+  @override
+  String get summaryRu =>
+      'Секретный рычаг [$puzzleId] (открывает дверь: ${doorPosition != null ? "${doorPosition!.x}, ${doorPosition!.z}" : "в проходе"})';
+}
+
 

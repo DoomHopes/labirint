@@ -923,7 +923,18 @@ final class RadialConcentricMazeGenerator
       }
     }
 
-    // 1. Размещаем сундуки с лутом ИСКЛЮЧИТЕЛЬНО в тупиках (dead-ends),
+    // 1. Размещаем головоломки «Запертая дверь ↔ Скрытый рычаг в тупике».
+    _placeDoorAndLeverPuzzles(
+      size: size,
+      random: random,
+      surfaces: surfaces,
+      tiers: tiers,
+      pois: pois,
+      redstoneFlags: redstoneFlags,
+      deadEndsByTier: deadEndsByTier,
+    );
+
+    // 2. Размещаем сундуки с лутом ИСКЛЮЧИТЕЛЬНО в тупиках (dead-ends),
     // привязывая тир лута к глубине кольца (Tier 1, Tier 2, Tier 3).
     for (final entry in deadEndsByTier.entries) {
       final tier = entry.key;
@@ -1052,6 +1063,105 @@ final class RadialConcentricMazeGenerator
     }
 
     return deadEndFlags;
+  }
+
+  /// Размещает головоломки «Запертая железная дверь ↔ Скрытый рычаг в тупике».
+  void _placeDoorAndLeverPuzzles({
+    required int size,
+    required math.Random random,
+    required List<CellSurfaceType> surfaces,
+    required List<RingTier> tiers,
+    required List<PoiMarker> pois,
+    required List<bool> redstoneFlags,
+    required Map<RingTier, List<({GridPosition pos, CardinalDirection exitDir})>>
+        deadEndsByTier,
+  }) {
+    final corridorDoorCandidates =
+        <({GridPosition pos, CardinalDirection facing, RingTier tier})>[];
+
+    for (var z = 2; z < size - 2; z++) {
+      for (var x = 2; x < size - 2; x++) {
+        final idx = z * size + x;
+        if (surfaces[idx] != CellSurfaceType.passage || pois[idx] is! NoPoi) {
+          continue;
+        }
+        final tier = tiers[idx];
+        if (tier != RingTier.tier2 && tier != RingTier.tier3) {
+          continue;
+        }
+
+        final northOpen = surfaces[(z - 1) * size + x].isWalkable;
+        final southOpen = surfaces[(z + 1) * size + x].isWalkable;
+        final eastOpen = surfaces[z * size + (x + 1)].isWalkable;
+        final westOpen = surfaces[z * size + (x - 1)].isWalkable;
+
+        if (northOpen && southOpen && !eastOpen && !westOpen) {
+          corridorDoorCandidates.add((
+            pos: GridPosition(x, z),
+            facing: CardinalDirection.north,
+            tier: tier,
+          ));
+        } else if (eastOpen && westOpen && !northOpen && !southOpen) {
+          corridorDoorCandidates.add((
+            pos: GridPosition(x, z),
+            facing: CardinalDirection.east,
+            tier: tier,
+          ));
+        }
+      }
+    }
+
+    if (corridorDoorCandidates.isEmpty) return;
+    corridorDoorCandidates.shuffle(random);
+
+    final puzzleNames = size >= 49 ? ['A', 'B'] : ['A'];
+    var puzzleIndex = 0;
+
+    for (final candidate in corridorDoorCandidates) {
+      if (puzzleIndex >= puzzleNames.length) break;
+      final puzzleId = puzzleNames[puzzleIndex];
+
+      final searchTiers = candidate.tier == RingTier.tier3
+          ? [RingTier.tier2, RingTier.tier3, RingTier.tier1]
+          : [RingTier.tier1, RingTier.tier2];
+
+      ({GridPosition pos, CardinalDirection exitDir})? chosenDeadEnd;
+      for (final sTier in searchTiers) {
+        final deadEnds = deadEndsByTier[sTier];
+        if (deadEnds != null && deadEnds.isNotEmpty) {
+          for (var i = 0; i < deadEnds.length; i++) {
+            final de = deadEnds[i];
+            if (de.pos.manhattanDistanceTo(candidate.pos) >= 5 &&
+                pois[de.pos.z * size + de.pos.x] is NoPoi) {
+              chosenDeadEnd = deadEnds.removeAt(i);
+              break;
+            }
+          }
+          if (chosenDeadEnd != null) break;
+        }
+      }
+
+      if (chosenDeadEnd != null) {
+        final doorPos = candidate.pos;
+        final leverPos = chosenDeadEnd.pos;
+
+        pois[doorPos.z * size + doorPos.x] = PuzzleDoorPoi(
+          puzzleId: puzzleId,
+          facing: candidate.facing,
+          leverPosition: leverPos,
+        );
+        redstoneFlags[doorPos.z * size + doorPos.x] = true;
+
+        pois[leverPos.z * size + leverPos.x] = PuzzleLeverPoi(
+          puzzleId: puzzleId,
+          wallFacing: chosenDeadEnd.exitDir.opposite,
+          doorPosition: doorPos,
+        );
+        redstoneFlags[leverPos.z * size + leverPos.x] = true;
+
+        puzzleIndex++;
+      }
+    }
   }
 
   int _countOpenNeighbors(

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../domain/entities/voxel_block_visual.dart';
+import '../../domain/entities/maze_enums.dart';
 import '../controllers/maze_architect_controller.dart';
 
-/// Панель переключения высотных слоев `Y = 0 .. H-1` и строка мгновенной индикации блока под курсором.
+/// Интуитивная панель переключения 2 основных слоев схемы:
+/// 1. Слой 1: Пол (разметка зон, проходы и тропинки).
+/// 2. Слой 2: Стены (камень), Сундуки с лутом и Загадки (Дверь + Рычаг).
 class YLayerSelectorBar extends StatelessWidget {
   final MazeArchitectController controller;
 
@@ -14,17 +16,8 @@ class YLayerSelectorBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final volume = controller.volume;
-    final grid = controller.grid;
-    if (volume == null || grid == null) {
-      return const SizedBox.shrink();
-    }
-
-    final activeY = controller.activeYLayer.clamp(0, volume.height - 1);
-    final layerInfo = VoxelBlockClassifier.describeYLayer(
-      y: activeY,
-      wallHeight: grid.config.wallHeight,
-    );
+    final mode = controller.viewLayerMode;
+    final isWallsLayer = mode == ViewLayerMode.wallsAndObjects;
 
     return Container(
       width: double.infinity,
@@ -43,42 +36,39 @@ class YLayerSelectorBar extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 const Text(
-                  'Высотный срез схемы (Слой Y):',
+                  'Выбор слоя схемы:',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF00E5FF),
                   ),
                 ),
+                const SizedBox(width: 10),
+                LayerTabButton(
+                  title: 'Слой 2: Стены, Сундуки и Загадки',
+                  subtitle: 'Камень, сундуки, двери и рычаги',
+                  icon: Icons.castle_rounded,
+                  isSelected: isWallsLayer,
+                  activeColor: const Color(0xFF00E5FF),
+                  onTap: () => controller.selectViewLayerMode(ViewLayerMode.wallsAndObjects),
+                ),
                 const SizedBox(width: 8),
-                for (var y = 0; y < volume.height; y++)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: YLayerButtonChip(
-                      y: y,
-                      wallHeight: grid.config.wallHeight,
-                      isSelected: activeY == y,
-                      onSelect: () => controller.selectYLayer(y),
-                    ),
-                  ),
-                const SizedBox(width: 6),
+                LayerTabButton(
+                  title: 'Слой 1: Пол (Разметка зон)',
+                  subtitle: 'Тиры 1–3, дорожки и арена',
+                  icon: Icons.layers_outlined,
+                  isSelected: !isWallsLayer,
+                  activeColor: const Color(0xFF00E676),
+                  onTap: () => controller.selectViewLayerMode(ViewLayerMode.floor),
+                ),
+                const SizedBox(width: 12),
                 FilterChip(
                   label: const Text(
-                    'Подписи блоков (СТН, РЗ►, СН)',
+                    'Подписи объектов (Т1, ДВ, РЫЧ)',
                     style: TextStyle(fontSize: 11),
                   ),
                   selected: controller.showBlockCodes,
                   onSelected: controller.toggleShowBlockCodes,
-                  visualDensity: VisualDensity.compact,
-                ),
-                const SizedBox(width: 6),
-                FilterChip(
-                  label: const Text(
-                    'Контур пола под воздухом',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                  selected: controller.showAirUnderlay,
-                  onSelected: controller.toggleShowAirUnderlay,
                   visualDensity: VisualDensity.compact,
                 ),
               ],
@@ -90,13 +80,15 @@ class YLayerSelectorBar extends StatelessWidget {
             child: Row(
               children: <Widget>[
                 Text(
-                  layerInfo.detailedDescription,
+                  isWallsLayer
+                      ? 'Отображаются стены из камня, сундуки в тупиках и головоломки (запертые двери соединены линиями со скрытыми рычагами).'
+                      : 'Отображается напольное покрытие зон: Внешнее кольцо (Т1), Среднее (Т2), Внутреннее (Т3) и Центральная арена.',
                   style: const TextStyle(
                     fontSize: 11.5,
                     color: Color(0xFFD0D8E8),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 FocusedBlockReadoutBadge(controller: controller),
               ],
             ),
@@ -107,66 +99,78 @@ class YLayerSelectorBar extends StatelessWidget {
   }
 }
 
-/// Кнопка выбора конкретного высотного слоя `Y`.
-class YLayerButtonChip extends StatelessWidget {
-  final int y;
-  final int wallHeight;
+/// Крупная информативная кнопка-вкладка для переключения между 2 слоями.
+class LayerTabButton extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
   final bool isSelected;
-  final VoidCallback onSelect;
+  final Color activeColor;
+  final VoidCallback onTap;
 
-  const YLayerButtonChip({
+  const LayerTabButton({
     super.key,
-    required this.y,
-    required this.wallHeight,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
     required this.isSelected,
-    required this.onSelect,
+    required this.activeColor,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final shortTag = _shortLayerTag(y, wallHeight);
-
     return InkWell(
-      onTap: onSelect,
-      borderRadius: BorderRadius.circular(5),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF00E5FF) : const Color(0xFF1C2434),
-          borderRadius: BorderRadius.circular(5),
+          color: isSelected ? const Color(0xFF1B283E) : const Color(0xFF101520),
+          borderRadius: BorderRadius.circular(6),
           border: Border.all(
-            color: isSelected
-                ? Colors.white
-                : const Color(0xFF33415C),
+            color: isSelected ? activeColor : const Color(0xFF2C394E),
+            width: isSelected ? 1.5 : 1.0,
           ),
         ),
-        child: Text(
-          'Y=$y ($shortTag)',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: isSelected ? Colors.black : const Color(0xFFD0D8E8),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? activeColor : const Color(0xFF8B99B5),
+            ),
+            const SizedBox(width: 6),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : const Color(0xFFB0BEC5),
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    color: isSelected ? activeColor : const Color(0xFF60728F),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
-
-  String _shortLayerTag(int y, int wallHeight) {
-    final wallTopY = 1 + wallHeight;
-    if (y == 0) return 'Redstone/Дно';
-    if (y == 1) return 'Пол';
-    if (y == 2) return 'Механизмы/Стены';
-    if (y == 3) return 'Верх дверей/Приз';
-    if (y < wallTopY) return 'Стены';
-    if (y == wallTopY) return 'Карниз';
-    if (y == wallTopY + 1) return 'Шахты';
-    if (y == wallTopY + 2) return 'Поршни';
-    return 'Питание';
-  }
 }
 
-/// Плашка мгновенной индикации блока под курсором мыши: координаты `(X, Y, Z)`, код, название и точный ID.
+/// Индикатор блока под курсором мыши.
 class FocusedBlockReadoutBadge extends StatelessWidget {
   final MazeArchitectController controller;
 
@@ -177,66 +181,48 @@ class FocusedBlockReadoutBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final volume = controller.volume;
+    final cell = controller.selectedCell;
     final pos = controller.focusedPosition;
-    if (volume == null || pos == null) {
+    if (cell == null || pos == null) {
       return const SizedBox.shrink();
     }
 
-    final y = controller.activeYLayer.clamp(0, volume.height - 1);
-    final state = volume.blockStateAt(pos.x, y, pos.z);
-    final spec = VoxelBlockClassifier.classify(state);
+    final isWall = cell.surfaceType.isSolidWall;
+    final objectName = cell.poi.summaryRu;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: const Color(0xFF0C1018),
         borderRadius: BorderRadius.circular(5),
         border: Border.all(color: const Color(0xFF384866)),
       ),
-      child: Wrap(
-        spacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Text(
-            '[X=${pos.x}, Y=$y, Z=${pos.z}]',
+            '[X=${pos.x}, Z=${pos.z}]',
             style: const TextStyle(
-              fontSize: 11.5,
+              fontSize: 11,
               fontFamily: 'monospace',
               fontWeight: FontWeight.bold,
               color: Color(0xFF00E5FF),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: Color(spec.fillArgb),
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: Color(spec.borderArgb)),
-            ),
-            child: Text(
-              spec.badgeLabel,
-              style: TextStyle(
-                fontSize: 10.5,
-                fontFamily: 'monospace',
-                fontWeight: FontWeight.w800,
-                color: Color(spec.textArgb),
-              ),
-            ),
-          ),
+          const SizedBox(width: 8),
           Text(
-            spec.titleRu,
+            isWall ? 'Каменная стена' : objectName,
             style: const TextStyle(
-              fontSize: 11.5,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
               color: Colors.white,
             ),
           ),
+          const SizedBox(width: 6),
           Text(
-            '($state)',
+            '(${cell.ringTier.shortLabel})',
             style: const TextStyle(
-              fontSize: 11,
-              fontFamily: 'monospace',
+              fontSize: 10.5,
               color: Color(0xFFFFEA00),
             ),
           ),

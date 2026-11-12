@@ -291,6 +291,24 @@ final class MazeVoxelCompiler implements IVoxelCompiler {
                 setVoxel: setVoxel,
                 blockEntities: blockEntities,
               );
+
+            case PuzzleDoorPoi(:final facing):
+              final lowerDoorIdx = registerBlockState(
+                'minecraft:iron_door[facing=${facing.minecraftName},half=lower,hinge=left,open=false,powered=false]',
+              );
+              final upperDoorIdx = registerBlockState(
+                'minecraft:iron_door[facing=${facing.minecraftName},half=upper,hinge=left,open=false,powered=false]',
+              );
+              setVoxel(x, 2, z, lowerDoorIdx);
+              setVoxel(x, 3, z, upperDoorIdx);
+              setVoxel(x, 0, z, redstoneWireIdx);
+
+            case PuzzleLeverPoi(:final wallFacing):
+              final leverIdx = registerBlockState(
+                'minecraft:lever[face=wall,facing=${wallFacing.minecraftName},powered=false]',
+              );
+              setVoxel(x, 2, z, leverIdx);
+              setVoxel(x, 0, z, redstoneWireIdx);
           }
         }
       }

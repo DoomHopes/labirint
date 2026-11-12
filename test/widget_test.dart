@@ -25,9 +25,9 @@ void main() {
     const generator = RadialConcentricMazeGenerator();
 
     test(
-      'Генерирует валидные сетки 33×33, 49×49 и 65×65 со смещением ворот 90°–180°',
+      'Генерирует валидные сетки 33×33, 49×49, 60×60 и 65×65 со смещением ворот 90°–180° и загадками',
       () {
-        for (final size in <int>[33, 49, 65]) {
+        for (final size in <int>[33, 49, 60, 65]) {
           for (final algo in MazeAlgorithm.values) {
             final config = MazeConfig.standard(seed: 100 + size).copyWith(
               gridSize: size,
@@ -63,6 +63,14 @@ void main() {
                 expect(chest.lootTier, equals(cell.ringTier));
               }
             }
+
+            // Проверяем генерацию головоломок «Дверь и Рычаг»
+            final doors = grid.cells.where((c) => c.poi is PuzzleDoorPoi).toList();
+            final levers = grid.cells.where((c) => c.poi is PuzzleLeverPoi).toList();
+            expect(doors.length, equals(levers.length));
+            final doorIds = doors.map((c) => (c.poi as PuzzleDoorPoi).puzzleId).toSet();
+            final leverIds = levers.map((c) => (c.poi as PuzzleLeverPoi).puzzleId).toSet();
+            expect(doorIds, equals(leverIds));
           }
         }
       },
@@ -164,9 +172,12 @@ void main() {
     expect(dispSpec.badgeLabel, equals('РЗ►'));
     expect(dispSpec.isAir, isFalse);
 
-    controller.selectYLayer(0);
+    controller.selectViewLayerMode(ViewLayerMode.floor);
     await tester.pump();
-    expect(controller.activeYLayer, equals(0));
-    expect(controller.activeLayerBlockCounts, isNotEmpty);
+    expect(controller.viewLayerMode, equals(ViewLayerMode.floor));
+
+    controller.selectViewLayerMode(ViewLayerMode.wallsAndObjects);
+    await tester.pump();
+    expect(controller.viewLayerMode, equals(ViewLayerMode.wallsAndObjects));
   });
 }

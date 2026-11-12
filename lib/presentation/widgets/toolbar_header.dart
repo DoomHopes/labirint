@@ -93,7 +93,7 @@ class ToolbarHeader extends StatelessWidget {
   }
 }
 
-/// Переключатель режимов отображения слоев карты.
+/// Переключатель режимов отображения слоев карты (2 слоя).
 class ViewLayerSelectorBar extends StatelessWidget {
   final MazeArchitectController controller;
 
@@ -106,7 +106,10 @@ class ViewLayerSelectorBar extends StatelessWidget {
         for (final mode in ViewLayerMode.values)
           ButtonSegment<ViewLayerMode>(
             value: mode,
-            label: Text(mode.title, style: const TextStyle(fontSize: 11.5)),
+            label: Text(
+              mode.shortTitle,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
           ),
       ],
       selected: <ViewLayerMode>{controller.viewLayerMode},

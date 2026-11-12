@@ -8,8 +8,12 @@ import 'data/services/file_export_service.dart';
 import 'data/voxels/maze_voxel_compiler.dart';
 import 'presentation/controllers/maze_architect_controller.dart';
 import 'presentation/screens/maze_architect_screen.dart';
+import 'presentation/services/texture_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await TextureService.instance.loadTextures();
+
   // Composition Root: сборка зависимостей через абстракции (Dependency Inversion).
   const generator = RadialConcentricMazeGenerator();
   const voxelCompiler = MazeVoxelCompiler();
